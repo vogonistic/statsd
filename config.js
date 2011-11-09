@@ -14,7 +14,11 @@ var Configurator = function (file) {
       if (err) { throw err; }
       old_config = self.config;
 
-      self.config = process.compile('config = ' + data, file);
+      // QD remove comments and parse JSON
+      new_config = JSON.parse(data.toString().replace(/(#|\/\/).*$/mg, ''))
+      
+      self.oldConfig = self.config;
+      self.config = new_config;
       self.emit('configChanged', self.config);
     });
   };
