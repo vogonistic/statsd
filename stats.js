@@ -34,38 +34,53 @@ config.configFile(process.argv[2], function (config, oldConfig) {
 
   if (server === undefined) {
     server = dgram.createSocket('udp4', function (msg, rinfo) {
-      if (config.dumpMessages) { util.log(msg.toString()); }
-      var bits = msg.toString().split(':');
-      var key = bits.shift()
-                    .replace(/\s+/g, '_')
-                    .replace(/\//g, '-')
-                    .replace(/[^a-zA-Z_\-0-9\.]/g, '');
+      
+      // for each message in the input, separated by newline
+      var lines = msg.toString().split(/[\n\r]+/);
+      for (var line_idx=0; line_idx<lines.length; line_idx++) {
+        var line = lines[line_idx];
+        if (config.dumpMessages) { util.log(line); }
 
-      if (bits.length == 0) {
-        bits.push("1");
-      }
+        // split message by ':'. Format: key:value|type[:value|type]...
+        var bits = line.split(':');
+        var key = bits.shift()
+                      .replace(/\s+/g, '_')
+                      .replace(/\//g, '-')
+                      .replace(/[^a-zA-Z_\-0-9\.]/g, '');
 
-      for (var i = 0; i < bits.length; i++) {
-        var sampleRate = 1;
-        var fields = bits[i].split("|");
-        if (fields[1] === undefined) {
-            util.log('Bad line: ' + fields);
-            stats['messages']['bad_lines_seen']++;
-            continue;
+        // if we just got a key, assume a counter is incremented
+        if (bits.length == 0) {
+          bits.push("1|c");
         }
-        if (fields[1].trim() == "ms") {
-          if (! timers[key]) {
-            timers[key] = [];
+
+        // for each value
+        for (var i = 0; i < bits.length; i++) {
+          var sampleRate = 1;
+          var fields = bits[i].split("|");
+          if (fields[1] === undefined) {
+              util.log('Bad line: ' + fields);
+              stats['messages']['bad_lines_seen']++;
+              continue;
           }
-          timers[key].push(Number(fields[0] || 0));
-        } else {
-          if (fields[2] && fields[2].match(/^@([\d\.]+)/)) {
-            sampleRate = Number(fields[2].match(/^@([\d\.]+)/)[1]);
+          
+          // timers
+          if (fields[1].trim() == "ms") {
+            if (! timers[key]) {
+              timers[key] = [];
+            }
+            timers[key].push(Number(fields[0] || 0));
+            
+          // counters
+          } else {
+            // is there a sample rate?
+            if (fields[2] && fields[2].match(/^@([\d\.]+)/)) {
+              sampleRate = Number(fields[2].match(/^@([\d\.]+)/)[1]);
+            }
+            if (! counters[key]) {
+              counters[key] = 0;
+            }
+            counters[key] += Number(fields[0] || 1) * (1 / sampleRate);
           }
-          if (! counters[key]) {
-            counters[key] = 0;
-          }
-          counters[key] += Number(fields[0] || 1) * (1 / sampleRate);
         }
       }
 

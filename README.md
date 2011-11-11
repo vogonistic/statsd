@@ -40,6 +40,25 @@ Sampling
 
 Tells StatsD that this counter is being sent sampled every 1/10th of the time.
 
+Advanced Tips
+-------------
+
+    gorets:1|c
+    glork:320|ms:500|ms
+
+Multiple keys can be sent in the same UDP packet if you separate them by newline. To pack multiple values for the one key, separate them by a `:`.
+
+Example: Using GAWK to parse apache logs
+----------------------------------------
+    
+    tail -F /var/log/httpd/access_log | gawk '
+    BEGIN { base=ENVIRON["HOSTNAME"]".httpd."; OFS="\n"; }
+    {
+        reqs = base"requests:1|c";
+        status = base"status_"$9":1|c";
+        status_bytes = base"status_"$9"_bytes:"$10"|c";
+        print reqs,status,status_bytes |& "/inet/udp/0/127.0.0.1/8125";
+    }'
 
 Guts
 ----
